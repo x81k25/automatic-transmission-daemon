@@ -1,0 +1,8 @@
+services:
+  automatic-transmission-daemon:
+    container_name: automatic-transmission-daemon-dev
+    ports:
+      - "9093:9091"
+    volumes:
+      - /d/media-cache/dev/complete:/media-cache/complete
+      - /d/media-cache/dev/incomplete:/media-cache/incomplete

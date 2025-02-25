@@ -1,0 +1,8 @@
+**/.bak/**
+.bak
+**/.github/**
+.github
+**/.dev/**
+.dev
+readme.md
+docker-compose.yml
