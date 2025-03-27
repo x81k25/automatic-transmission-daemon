@@ -1,8 +1,0 @@
-services:
-  automatic-transmission-daemon:
-    build: .
-    environment:
-      - DEBIAN_FRONTEND=noninteractive
-    volumes:
-      - /media-cache/complete:/media-cache/complete
-      - /media-cache/incomplete:/media-cache/incomplete
