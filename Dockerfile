@@ -40,11 +40,7 @@ RUN echo '{\n\
     "umask": 2\n\
 }' > /settings-template.json
 
-# Configure transmission settings to user profile
-COPY config/transmission-settings.json /home/transmission/.config/transmission-daemon/settings.json
-RUN chown 1005:1001 /home/transmission/.config/transmission-daemon/settings.json
-
-# Create startup script
+# copy start script
 COPY scripts/start.sh /start.sh
 RUN chmod +x /start.sh
 
