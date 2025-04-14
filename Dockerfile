@@ -29,6 +29,9 @@ RUN echo '{\n\
     "incomplete-dir-enabled": true,\n\
     "peer-limit-global": 100,\n\
     "peer-limit-per-torrent": 100,\n\
+    "proxy": "vpn-gateway.media-dev.svc.cluster.local", \
+    "proxy-port": 8118, \
+    "proxy-type": 1, \
     "ratio-limit-enabled": false,\n\
     "rpc-authentication-required": false,\n\
     "rpc-bind-address": "0.0.0.0",\n\
