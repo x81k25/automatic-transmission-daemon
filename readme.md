@@ -88,14 +88,25 @@ This repository uses multiple docker-compose files to support different environm
 To launch a specific environment:
 
 ```bash
-# Development (port 9093)
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# run container
+docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.stg.yml up -d
+docker-compose -f docker-compose.prod.yml up -d
 
-# Staging (port 9092)
-docker-compose -f docker-compose.yml -f docker-compose.stg.yml up -d
+# tear down
+docker-compose -f docker-compose.dev.yml down
+docker-compose -f docker-compose.stg.yml down
+docker-compose -f docker-compose.prod.yml down
 
-# Production (port 9091)
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# re-build and ron container
+docker-compose -f docker-compose.dev.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.stg.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.pord.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
+
+# exec into container
+sudo docker exec -it automatic-transmission-daemon-dev /bin/bash
+sudo docker exec -it automatic-transmission-daemon-stg /bin/bash
+sudo docker exec -it automatic-transmission-daemon-prod /bin/bash
 ```
 
 This approach allows you to:

@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     procps \
     nmap \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure directories and permissions
@@ -53,8 +54,9 @@ RUN echo '{\n\
 }' > /settings-template.json
 
 # copy start script
-COPY scripts/start.sh /start.sh
-RUN chmod +x /start.sh
+COPY start.sh /start.sh
+RUN chmod +x /start.sh && \
+    chown 1005:1001 /start.sh
 
 # Expose transmission web interface port
 EXPOSE 9091
