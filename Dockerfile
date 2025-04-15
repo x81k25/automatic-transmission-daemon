@@ -6,6 +6,15 @@ RUN apt-get update && apt-get install -y \
     transmission-daemon \
     netcat-openbsd \
     gettext-base \
+    curl \
+    iputils-ping \
+    dnsutils \
+    net-tools \
+    traceroute \
+    tcpdump \
+    iproute2 \
+    procps \
+    nmap \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure directories and permissions
