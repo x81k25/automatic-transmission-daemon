@@ -1,0 +1,37 @@
+FROM ubuntu:24.04
+
+# Install OpenVPN and required networking tools
+RUN apt-get update && apt-get install -y \
+    openvpn \
+    curl \
+    dnsutils \
+    iptables \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+    
+WORKDIR /etc/openvpn
+
+# Add TUN device setup
+RUN mkdir -p /dev/net && \
+    mknod /dev/net/tun c 10 200 && \
+    chmod 600 /dev/net/tun
+
+# Create sensitive directory
+RUN mkdir -p sensitive
+
+# Copy credentials at build time using BuildKit secret
+RUN --mount=type=secret,id=vpn_auth,target=/run/secrets/auth.txt \
+    cp /run/secrets/auth.txt sensitive/auth.txt && \
+    chmod 600 sensitive/auth.txt
+
+# Add OpenVPN config file at build time using BuildKit secret
+RUN --mount=type=secret,id=vpn_config,target=/run/secrets/config.ovpn \
+    cp /run/secrets/config.ovpn sensitive/config.ovpn && \
+    chmod 600 sensitive/config.ovpn
+
+# Copy entrypoint script
+COPY entrypoint.sh /scripts/entrypoint.sh
+RUN chmod +x /scripts/entrypoint.sh
+
+# Fix path to match the copied file
+ENTRYPOINT ["/scripts/entrypoint.sh"]

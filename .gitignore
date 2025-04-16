@@ -47,3 +47,7 @@ Thumbs.db
 
 # files use for development only
 .dev/
+
+# credential files
+my_expressvpn_usa_-_dallas_udp.ovpn
+sensitive/
