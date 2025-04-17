@@ -61,6 +61,64 @@ This repository includes GitHub Actions workflows that automatically build and p
 3. Tags images with branch name and latest (for main branch)
 
 ## Usage
+  
+## Usage
+
+### Building and Running
+
+#### Build Images
+```bash
+# Build with specific Dockerfiles
+docker-compose build --build-arg DOCKERFILE=Dockerfile.atd atd
+docker-compose build --build-arg DOCKERFILE=Dockerfile.vpn vpn
+
+# Alternative build with docker command
+## atd image
+docker build -f Dockerfile.atd -t atd-image .
+## vpn image
+
+# Run both services in background
+docker-compose up -d
+
+# full restart
+docker-compose down && docker-compose build --no-cache vpn && docker-compose up -d
+
+# test vpn status
+docker exec -it vpn curl ifconfig.me
+docker exec -it atd curl ifconfig.me
+
+# exec into conatiner
+docker exec -it vpn /bin/bash
+
+# get container logs
+docker logs vpn
+docker logs atd
+
+# command for vpn container only
+## build
+docker build -t dockerfile.vpn -f dockerfile.vpn .
+
+## build without cache
+docker build -t dockerfile.vpn -f dockerfile.vpn --no-cache .
+
+## run container
+docker compose up -d vpn
+
+## whole thing
+docker compose down vpn && docker compose build --no-cache vpn && docker compose up -d vpn
+
+# clean slate
+docker stop $(docker ps -aq) && docker rm $(docker ps -aq) && docker rmi $(docker images -q) --force && docker system prune -af --volumes
+
+```
+
+
+
+
+
+
+
+## Usage
 
 ### Building the Image Locally
 
@@ -81,7 +139,7 @@ docker run -d \
 
 ### Running with Docker Compose
 
-This repository uses multiple docker-compose files to support different environments (development, staging, production) with environment-specific configurations.
+This repository uses multiple docker compose files to support different environments (development, staging, production) with environment-specific configurations.
 
 #### Running Specific Environments
 
@@ -89,19 +147,14 @@ To launch a specific environment:
 
 ```bash
 # run container
-docker-compose -f docker-compose.dev.yml up -d
-docker-compose -f docker-compose.stg.yml up -d
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker compose.dev.yml up -d
+docker compose -f docker compose.stg.yml up -d
+docker compose -f docker compose.prod.yml up -d
 
 # tear down
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.stg.yml down
-docker-compose -f docker-compose.prod.yml down
-
-# re-build and ron container
-docker-compose -f docker-compose.dev.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
-docker-compose -f docker-compose.stg.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
-docker-compose -f docker-compose.pord.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker compose.dev.yml down
+docker compose -f docker compose.stg.yml down
+docker compose -f docker compose.prod.yml down
 
 # exec into container
 sudo docker exec -it automatic-transmission-daemon-dev /bin/bash

@@ -1,0 +1,46 @@
+networks:
+  vpn-network:
+    driver: bridge
+
+services:
+  vpn-sidecar:
+    build:
+      context: .
+      dockerfile: dockerfile.vpn
+      args:
+        - VPN_USERNAME=${VPN_USERNAME}
+        - VPN_PASSWORD=${VPN_PASSWORD}
+        - VPN_CONFIG=${VPN_CONFIG}
+    container_name: vpn-sidecar
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    env_file:
+      - ./.env
+    devices:
+      - /dev/net/tun
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    command: >
+      sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf &&
+             echo 'nameserver 8.8.4.4' >> /etc/resolv.conf &&
+             /entrypoint.sh"
+    networks:
+      - vpn-network
+
+  atd:
+    build:
+      context: .
+      dockerfile: dockerfile.atd
+    container_name: atd
+    restart: unless-stopped
+    network_mode: "service:vpn"  # Using service instead of container name
+    volumes:
+      - ./media-cache/complete:/media-cache/complete
+      - ./media-cache/incomplete:/media-cache/incomplete
+    environment:
+      - PUID=1005
+      - PGID=1001
+    depends_on:
+      - vpn

@@ -9,3 +9,5 @@ docker-compose.yml
 my_expressvpn_usa_-_dallas_udp.ovpn
 sensitive/
 .github
+.env
+vpn-config.opvn
