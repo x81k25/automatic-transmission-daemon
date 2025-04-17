@@ -61,6 +61,64 @@ This repository includes GitHub Actions workflows that automatically build and p
 3. Tags images with branch name and latest (for main branch)
 
 ## Usage
+  
+## Usage
+
+### Building and Running
+
+#### Build Images
+```bash
+# Build with specific Dockerfiles
+docker-compose build --build-arg DOCKERFILE=Dockerfile.atd atd
+docker-compose build --build-arg DOCKERFILE=Dockerfile.vpn vpn-sidecar
+
+# Alternative build with docker command
+## atd image
+docker build -f Dockerfile.atd -t atd-image .
+## vpn-sidecar image
+
+# Run both services in background
+docker-compose up -d
+
+# full restart
+docker-compose down && docker-compose build --no-cache vpn-sidecar && docker-compose up -d
+
+# test vpn-sidecar status
+docker exec -it vpn-sidecar curl ifconfig.me
+docker exec -it atd curl ifconfig.me
+
+# exec into conatiner
+docker exec -it vpn-sidecar /bin/bash
+
+# get container logs
+docker logs vpn-sidecar
+docker logs atd
+
+# command for vpn-sidecar container only
+## build
+docker build -t dockerfile.vpn-sidecar -f dockerfile.vpn .
+
+## build without cache
+docker build -t dockerfile.vpn -f dockerfile.vpn --no-cache .
+
+## run container
+docker compose up -d vpn-sidecar
+
+## whole thing
+docker compose down vpn-sidecar && docker compose build --no-cache vpn-sidecar && docker compose up -d vpn-sidecar
+
+# clean slate
+docker stop $(docker ps -aq) && docker rm $(docker ps -aq) && docker rmi $(docker images -q) --force && docker system prune -af --volumes
+
+```
+
+
+
+
+
+
+
+## Usage
 
 ### Building the Image Locally
 
@@ -81,21 +139,27 @@ docker run -d \
 
 ### Running with Docker Compose
 
-This repository uses multiple docker-compose files to support different environments (development, staging, production) with environment-specific configurations.
+This repository uses multiple docker compose files to support different environments (development, staging, production) with environment-specific configurations.
 
 #### Running Specific Environments
 
 To launch a specific environment:
 
 ```bash
-# Development (port 9093)
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# run container
+docker compose -f docker compose.dev.yml up -d
+docker compose -f docker compose.stg.yml up -d
+docker compose -f docker compose.prod.yml up -d
 
-# Staging (port 9092)
-docker-compose -f docker-compose.yml -f docker-compose.stg.yml up -d
+# tear down
+docker compose -f docker compose.dev.yml down
+docker compose -f docker compose.stg.yml down
+docker compose -f docker compose.prod.yml down
 
-# Production (port 9091)
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# exec into container
+sudo docker exec -it automatic-transmission-daemon-dev /bin/bash
+sudo docker exec -it automatic-transmission-daemon-stg /bin/bash
+sudo docker exec -it automatic-transmission-daemon-prod /bin/bash
 ```
 
 This approach allows you to:
