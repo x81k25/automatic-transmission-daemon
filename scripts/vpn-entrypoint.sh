@@ -89,8 +89,17 @@ start_openvpn() {
       echo "VPN connection established!"
       
       # Add route to allow local network traffic to bypass VPN
-      ip route add 192.168.50.0/24 via 172.18.0.1 dev eth0
-      echo "Added local network bypass route"
+      echo "Getting default gateway..."
+      DEFAULT_GW=$(ip route | grep default | awk '{print $3}')
+      echo "Default gateway found: $DEFAULT_GW"
+
+      echo "Attempting to add local network bypass route..."
+      if ip route add 192.168.50.0/24 via $DEFAULT_GW dev eth0; then
+        echo "Successfully added local network bypass route via $DEFAULT_GW"
+      else
+        echo "Failed to add local network bypass route via $DEFAULT_GW"
+        # Still continue script execution
+      fi
 
       # Get the VPN interface
       VPN_INTERFACE="tun0"
