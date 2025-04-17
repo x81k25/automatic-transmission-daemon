@@ -70,42 +70,42 @@ This repository includes GitHub Actions workflows that automatically build and p
 ```bash
 # Build with specific Dockerfiles
 docker-compose build --build-arg DOCKERFILE=Dockerfile.atd atd
-docker-compose build --build-arg DOCKERFILE=Dockerfile.vpn vpn
+docker-compose build --build-arg DOCKERFILE=Dockerfile.vpn vpn-sidecar
 
 # Alternative build with docker command
 ## atd image
 docker build -f Dockerfile.atd -t atd-image .
-## vpn image
+## vpn-sidecar image
 
 # Run both services in background
 docker-compose up -d
 
 # full restart
-docker-compose down && docker-compose build --no-cache vpn && docker-compose up -d
+docker-compose down && docker-compose build --no-cache vpn-sidecar && docker-compose up -d
 
-# test vpn status
-docker exec -it vpn curl ifconfig.me
+# test vpn-sidecar status
+docker exec -it vpn-sidecar curl ifconfig.me
 docker exec -it atd curl ifconfig.me
 
 # exec into conatiner
-docker exec -it vpn /bin/bash
+docker exec -it vpn-sidecar /bin/bash
 
 # get container logs
-docker logs vpn
+docker logs vpn-sidecar
 docker logs atd
 
-# command for vpn container only
+# command for vpn-sidecar container only
 ## build
-docker build -t dockerfile.vpn -f dockerfile.vpn .
+docker build -t dockerfile.vpn-sidecar -f dockerfile.vpn .
 
 ## build without cache
 docker build -t dockerfile.vpn -f dockerfile.vpn --no-cache .
 
 ## run container
-docker compose up -d vpn
+docker compose up -d vpn-sidecar
 
 ## whole thing
-docker compose down vpn && docker compose build --no-cache vpn && docker compose up -d vpn
+docker compose down vpn-sidecar && docker compose build --no-cache vpn-sidecar && docker compose up -d vpn-sidecar
 
 # clean slate
 docker stop $(docker ps -aq) && docker rm $(docker ps -aq) && docker rmi $(docker images -q) --force && docker system prune -af --volumes

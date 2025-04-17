@@ -63,6 +63,16 @@ setup_forwarding() {
   # Allow specifically to the VPN server IP from logs
   iptables -A OUTPUT -d 45.80.159.182 -j ACCEPT
   
+  # Allow all incoming traffic to port 9091 regardless of interface
+  iptables -I INPUT -p tcp --dport 9091 -j ACCEPT
+
+  # Allow all outgoing traffic from port 9091
+  iptables -I OUTPUT -p tcp --sport 9091 -j ACCEPT
+
+  # Ensure the traffic can flow through any filtering chains
+  iptables -I FORWARD -p tcp --dport 9091 -j ACCEPT
+  iptables -I FORWARD -p tcp --sport 9091 -j ACCEPT
+
   echo "iptables forwarding rules have been set up"
 }
 
@@ -78,6 +88,10 @@ start_openvpn() {
     if ip link show tun0 >/dev/null 2>&1; then
       echo "VPN connection established!"
       
+      # Add route to allow local network traffic to bypass VPN
+      ip route add 192.168.50.0/24 via 172.18.0.1 dev eth0
+      echo "Added local network bypass route"
+
       # Get the VPN interface
       VPN_INTERFACE="tun0"
       
@@ -87,6 +101,15 @@ start_openvpn() {
       # Allow traffic through VPN
       iptables -A INPUT -i $VPN_INTERFACE -j ACCEPT
       iptables -A OUTPUT -o $VPN_INTERFACE -j ACCEPT
+      
+      # Check if Transmission is running in the shared network namespace
+      sleep 10  # Give transmission a moment to start if it's in another container
+      if ! pgrep -f "transmission-daemon" > /dev/null; then
+        echo "Transmission daemon not detected, this is expected if using network_mode: service"
+        echo "If Transmission should be running, check the atd container logs"
+      else
+        echo "Transmission daemon detected and running"
+      fi
       
       # Keep the script running
       wait $VPN_PID

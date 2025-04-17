@@ -13,6 +13,8 @@ services:
         - VPN_CONFIG=${VPN_CONFIG}
     container_name: vpn-sidecar
     restart: unless-stopped
+    ports:   
+      - "9091:9091"
     cap_add:
       - NET_ADMIN
     env_file:
@@ -35,7 +37,7 @@ services:
       dockerfile: dockerfile.atd
     container_name: atd
     restart: unless-stopped
-    network_mode: "service:vpn"  # Using service instead of container name
+    network_mode: "service:vpn-sidecar" 
     volumes:
       - ./media-cache/complete:/media-cache/complete
       - ./media-cache/incomplete:/media-cache/incomplete
@@ -43,4 +45,4 @@ services:
       - PUID=1005
       - PGID=1001
     depends_on:
-      - vpn
+      - vpn-sidecar
