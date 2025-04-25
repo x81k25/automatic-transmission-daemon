@@ -1,10 +1,15 @@
-# Dockerized Transmission BitTorrent Client
+# Dockerized Transmission with VPN Sidecar
 
-A lightweight Docker container for running Transmission BitTorrent client based on Debian 12 slim.
+A secure Docker setup for running Transmission BitTorrent client behind a VPN connection.
 
 ## Overview
 
-This repository contains configuration files to build and run Transmission daemon in a Docker container with custom settings. The container is designed to run with specific user permissions and configured download directories.
+This repository contains configuration files to run Transmission daemon in a two-container setup:
+
+1. **VPN Sidecar**: A container that establishes and maintains a VPN connection
+2. **Transmission Daemon**: A BitTorrent client that routes all traffic through the VPN
+
+This architecture ensures that torrent traffic only flows through the VPN connection, providing privacy and security.
 
 ## Repository Structure
 
@@ -12,195 +17,162 @@ This repository contains configuration files to build and run Transmission daemo
 .
 ├── .github
 │   └── workflows
-│       └── docker-build.yml
+│       └── docker-build.yml  # CI/CD workflow for building container images
 ├── scripts
-│   └── start.sh
+│   ├── atd-start.sh         # Transmission startup script
+│   └── vpn-entrypoint.sh    # VPN container entrypoint script
 ├── .dockerignore
 ├── .gitignore
-├── docker-compose.dev.yml
-├── docker-compose.prod.yml
-├── docker-compose.stg.yml
-├── Dockerfile
+├── docker-compose.yml       # Configuration for running both containers
+├── dockerfile.atd           # Dockerfile for Transmission container
+├── dockerfile.vpn           # Dockerfile for VPN sidecar container
 └── readme.md
 ```
 
 ## Prerequisites
 
 - Docker
-- Docker Compose (for using the docker-compose configuration files)
+- Docker Compose
+- VPN subscription with OpenVPN configuration
+
+## How It Works
+
+### VPN Sidecar Architecture
+
+The setup uses a "sidecar" pattern where:
+
+1. The VPN container establishes the secure connection
+2. The Transmission container shares the VPN container's network namespace
+3. All Transmission traffic is forced through the VPN tunnel
+
+This approach ensures that if the VPN connection drops, Transmission traffic cannot leak outside the secure tunnel.
+
+### Container Details
+
+#### VPN Sidecar Container
+
+- Based on Ubuntu 24.10
+- Runs OpenVPN client
+- Configures iptables for proper traffic routing
+- Manages DNS settings to prevent leaks
+- Exposes port 9091 for Transmission web interface
+
+#### Transmission Container
+
+- Based on Debian Stable Slim
+- Configured with specific UID/GID (1005:1001)
+- Mounts host directories for downloads
+- Shares network namespace with VPN container
 
 ## Configuration
 
-### Dockerfile
+### Environment Variables
 
-The Dockerfile:
-- Uses Debian 12 slim as the base image
-- Installs Transmission daemon and necessary utilities
-- Configures user permissions (UID: 1005, GID: 1001)
-- Sets up download directories in `/media-cache/`
-- Contains a built-in settings template that is processed at startup
+Create a `.env` file in the repository root with the following variables:
 
-### Transmission Settings
+```
+VPN_USERNAME=your_vpn_username
+VPN_PASSWORD=your_vpn_password
+VPN_CONFIG=your_openvpn_config_content
+```
 
-The configuration for Transmission is now directly embedded in the Dockerfile as a template (`/settings-template.json`), which is processed by the start script at container launch. This approach eliminates the need for a separate configuration file.
+The `VPN_CONFIG` variable should contain the entire content of your OpenVPN configuration file.
 
-Default settings include:
-- Download directories for complete and incomplete files
-- RPC interface configuration (no authentication required by default)
-- Network and performance tuning
-- Cache size, peer limits, and other BitTorrent-specific settings
+### Volumes
 
-The start script (`scripts/start.sh`) processes this template using environment variables and starts the Transmission daemon with the generated configuration.
+The docker-compose.yml file configures two volume mounts:
 
-### CI/CD Pipeline
+- `./media-cache/complete`: Directory for completed downloads
+- `./media-cache/incomplete`: Directory for incomplete downloads
 
-This repository includes GitHub Actions workflows that automatically build and push Docker images when changes are pushed to the `main`, `dev`, or `stg` branches. The workflow:
+Make sure these directories exist on your host system with proper permissions.
 
-1. Builds the Docker image
-2. Pushes the image to GitHub Container Registry (GHCR)
-3. Tags images with branch name and latest (for main branch)
-
-## Usage
-  
 ## Usage
 
 ### Building and Running
 
-#### Build Images
+To build and start both containers:
+
 ```bash
-# Build with specific Dockerfiles
-docker-compose build --build-arg DOCKERFILE=Dockerfile.atd atd
-docker-compose build --build-arg DOCKERFILE=Dockerfile.vpn vpn-sidecar
+# Build and start both containers
+docker compose up -d
 
-# Alternative build with docker command
-## atd image
-docker build -f Dockerfile.atd -t atd-image .
-## vpn-sidecar image
+# Build containers without using cache
+docker compose build --no-cache
+docker compose up -d
+```
 
-# Run both services in background
-docker-compose up -d
+### Verifying VPN Connection
 
-# full restart
-docker-compose down && docker-compose build --no-cache vpn-sidecar && docker-compose up -d
+To verify that traffic is routing through the VPN:
 
-# test vpn-sidecar status
+```bash
+# Check IP address from VPN container
 docker exec -it vpn-sidecar curl ifconfig.me
+
+# Check IP address from Transmission container
 docker exec -it atd curl ifconfig.me
+```
 
-# exec into conatiner
-docker exec -it vpn-sidecar /bin/bash
+Both commands should return the same IP address, which should be your VPN provider's IP, not your actual public IP.
 
-# get container logs
+### Managing Containers
+
+```bash
+# View container logs
 docker logs vpn-sidecar
 docker logs atd
 
-# command for vpn-sidecar container only
-## build
-docker build -t dockerfile.vpn-sidecar -f dockerfile.vpn .
+# Access container shell
+docker exec -it vpn-sidecar /bin/bash
+docker exec -it atd /bin/bash
 
-## build without cache
-docker build -t dockerfile.vpn -f dockerfile.vpn --no-cache .
-
-## run container
-docker compose up -d vpn-sidecar
-
-## whole thing
-docker compose down vpn-sidecar && docker compose build --no-cache vpn-sidecar && docker compose up -d vpn-sidecar
-
-# clean slate
-docker stop $(docker ps -aq) && docker rm $(docker ps -aq) && docker rmi $(docker images -q) --force && docker system prune -af --volumes
-
+# Stop containers
+docker compose down
 ```
 
+### Full Rebuild
 
-
-
-
-
-
-## Usage
-
-### Building the Image Locally
+If you need to completely rebuild the containers:
 
 ```bash
-docker build -t transmission-bt .
+# Stop, rebuild without cache, and restart
+docker compose down && docker compose build --no-cache && docker compose up -d
 ```
 
-### Running with Docker
+## CI/CD Pipeline
 
-```bash
-docker run -d \
-  --name transmission \
-  -p 9091:9091 \
-  -v /path/to/downloads:/media-cache/complete \
-  -v /path/to/incomplete:/media-cache/incomplete \
-  transmission-bt
-```
+This repository includes GitHub Actions workflows that automatically build and push Docker images when changes are pushed to the `main`, `dev`, or `stg` branches. The workflow:
 
-### Running with Docker Compose
+1. Builds both Docker images (ATD and VPN)
+2. Pushes the images to GitHub Container Registry (GHCR)
+3. Tags images with branch name and latest (for main branch)
 
-This repository uses multiple docker compose files to support different environments (development, staging, production) with environment-specific configurations.
+## Troubleshooting
 
-#### Running Specific Environments
+### VPN Connection Issues
 
-To launch a specific environment:
+If the VPN connection fails to establish:
 
-```bash
-# run container
-docker compose -f docker compose.dev.yml up -d
-docker compose -f docker compose.stg.yml up -d
-docker compose -f docker compose.prod.yml up -d
+1. Check the VPN container logs: `docker logs vpn-sidecar`
+2. Verify your VPN credentials in the `.env` file
+3. Ensure your OpenVPN config is valid and complete
 
-# tear down
-docker compose -f docker compose.dev.yml down
-docker compose -f docker compose.stg.yml down
-docker compose -f docker compose.prod.yml down
+### Transmission Access Issues
 
-# exec into container
-sudo docker exec -it automatic-transmission-daemon-dev /bin/bash
-sudo docker exec -it automatic-transmission-daemon-stg /bin/bash
-sudo docker exec -it automatic-transmission-daemon-prod /bin/bash
-```
+If you can't access the Transmission web interface:
 
-This approach allows you to:
-- Run multiple environments simultaneously without conflicts
-- Keep all configuration files in version control
-- Clearly separate environment-specific settings
+1. Verify that the VPN connection is established
+2. Check that port 9091 is correctly forwarded
+3. Ensure iptables rules in the VPN container are correctly configured
 
-## Environment Configurations
+### Network Connectivity Issues
 
-| Environment | Container Name | Port Mapping | Volume Paths |
-|-------------|----------------|--------------|--------------|
-| Development | automatic-transmission-daemon-dev | 9093:9091 | /d/media-cache/dev/* |
-| Staging | automatic-transmission-daemon-stg | 9092:9091 | /d/media-cache/stg/* |
-| Production | automatic-transmission-daemon | 9091:9091 | /d/media-cache/prod/* |
+If containers can't access the internet:
 
-## Ports
-
-- **9091**: Transmission web interface (default)
-
-## Volumes
-
-- **/media-cache/complete**: Directory for completed downloads
-- **/media-cache/incomplete**: Directory for incomplete downloads
-
-## User/Group Permissions
-
-The container runs with:
-- UID: 1005
-- GID: 1001
-
-Ensure these IDs have proper permissions on your host system if mapping volumes.
-
-## GitHub Container Registry
-
-You can also pull the pre-built image from GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/yourusername/automatic-transmission:latest
-```
-
-Replace `yourusername` with your actual GitHub username/organization.
+1. Check DNS configuration in the VPN container
+2. Verify that routing is properly configured
+3. Make sure `NET_ADMIN` capability is granted to the VPN container
 
 ## License
 
