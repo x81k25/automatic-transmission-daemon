@@ -1,9 +1,0 @@
-services:
-  automatic-transmission-daemon:
-    container_name: automatic-transmission-daemon-dev
-    build: .
-    ports:
-      - "9093:9091"
-    volumes:
-      - /d/media-cache/dev/complete:/media-cache/complete
-      - /d/media-cache/dev/incomplete:/media-cache/incomplete
