@@ -1,37 +1,17 @@
 # ./dockerfile.vpn
-FROM ubuntu:24.10
+FROM ubuntu:24.04
 
-# Add build arguments
-ARG VPN_USERNAME
-ARG VPN_PASSWORD
-ARG VPN_CONFIG
-
-# Install OpenVPN and required tools
+# Install WireGuard and required tools
 RUN apt-get update && apt-get install -y \
-    openvpn \
+    wireguard \
+    wireguard-tools \
     curl \
     dnsutils \
     iptables \
     iproute2 \
     iputils-ping \
+    procps \
     && rm -rf /var/lib/apt/lists/*
-    
-WORKDIR /etc/openvpn
-
-# Add TUN device setup
-RUN mkdir -p /dev/net && \
-    mknod /dev/net/tun c 10 200 && \
-    chmod 600 /dev/net/tun
-
-# Create credentials directory
-RUN mkdir -p /etc/openvpn/sensitive
-
-# Create credentials from environment variables (fail if not provided)
-RUN echo "${VPN_USERNAME}" > /etc/openvpn/sensitive/creds.txt && \
-    echo "${VPN_PASSWORD}" >> /etc/openvpn/sensitive/creds.txt
-
-# Decode and save the VPN config (will fail build if decoding fails)
-RUN echo "${VPN_CONFIG}" > /etc/openvpn/sensitive/vpn-config.ovpn
 
 # Copy entrypoint script
 COPY scripts/vpn-entrypoint.sh /entrypoint.sh

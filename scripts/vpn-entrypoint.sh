@@ -1,136 +1,180 @@
 #!/bin/bash
 set -e
 
-# Setup paths
-CONFIG_DIR="/etc/openvpn/sensitive"
-CONFIG_FILE="/etc/openvpn/config.ovpn"
-CREDS_PATH="${CONFIG_DIR}/creds.txt"
+CONFIG_FILE="/etc/wireguard/wg0.conf"
 
-# Make sure the directory exists
-mkdir -p ${CONFIG_DIR}
+# Validate required environment variables
+echo "Validating WireGuard configuration..."
+required_vars=(
+    "WIREGUARD_PRIVATE_KEY"
+    "WIREGUARD_ADDRESS"
+    "WIREGUARD_PUBLIC_KEY"
+    "WIREGUARD_ENDPOINT"
+)
 
-# Write credentials from environment variables
-echo "Setting up VPN credentials from environment variables"
-echo "$VPN_USERNAME" > "${CREDS_PATH}"
-echo "$VPN_PASSWORD" >> "${CREDS_PATH}"
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        echo "ERROR: Required environment variable $var is not set"
+        exit 1
+    fi
+done
 
-# Write config from environment variable
-echo "Writing VPN config from environment variable"
-echo "$VPN_CONFIG" > "${CONFIG_FILE}"
+# Create WireGuard config directory
+mkdir -p /etc/wireguard
+
+# Generate WireGuard configuration from environment variables
+echo "Generating WireGuard configuration..."
+cat > "${CONFIG_FILE}" << EOF
+[Interface]
+PrivateKey = ${WIREGUARD_PRIVATE_KEY}
+
+[Peer]
+PublicKey = ${WIREGUARD_PUBLIC_KEY}
+AllowedIPs = ${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}
+Endpoint = ${WIREGUARD_ENDPOINT}
+PersistentKeepalive = 25
+EOF
+
+chmod 600 "${CONFIG_FILE}"
 
 # Set DNS servers
-echo "Setting DNS servers"
+echo "Setting DNS servers..."
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 # Start DNS monitor in background
-echo "Starting DNS configuration monitor"
+echo "Starting DNS configuration monitor..."
 (
-  while true; do
-    if ! grep -q "nameserver 8.8.8.8" /etc/resolv.conf; then
-      echo "Resetting resolv.conf..."
-      echo "nameserver 8.8.8.8" > /etc/resolv.conf
-      echo "nameserver 8.8.4.4" >> /etc/resolv.conf
-    fi
-    sleep 5
-  done
+    while true; do
+        if ! grep -q "nameserver 8.8.8.8" /etc/resolv.conf; then
+            echo "Resetting resolv.conf..."
+            echo "nameserver 8.8.8.8" > /etc/resolv.conf
+            echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+        fi
+        sleep 5
+    done
 ) &
 
 # Setup iptables for forwarding
 setup_forwarding() {
-  # Enable IP forwarding at runtime
-  sysctl -w net.ipv4.ip_forward=1 || echo "Could not set IP forwarding, but continuing anyway"
-  
-  # Clear existing rules
-  iptables -F
-  iptables -t nat -F
-  
-  # Allow established connections
-  iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-  
-  # Allow loopback
-  iptables -A INPUT -i lo -j ACCEPT
-  iptables -A OUTPUT -o lo -j ACCEPT
-  
-  # Allow DNS
-  iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-  
-  # Allow OpenVPN (to both common ports and the one from your logs)
-  iptables -A OUTPUT -p udp --dport 1194 -j ACCEPT
-  iptables -A OUTPUT -p udp --dport 1195 -j ACCEPT
-  iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
-  
-  # Allow specifically to the VPN server IP from logs
-  iptables -A OUTPUT -d 45.80.159.182 -j ACCEPT
-  
-  # Allow all incoming traffic to port 9091 regardless of interface
-  iptables -I INPUT -p tcp --dport 9091 -j ACCEPT
+    # Enable IP forwarding at runtime
+    sysctl -w net.ipv4.ip_forward=1 || echo "Could not set IP forwarding, but continuing anyway"
 
-  # Allow all outgoing traffic from port 9091
-  iptables -I OUTPUT -p tcp --sport 9091 -j ACCEPT
+    # Clear existing rules
+    iptables -F
+    iptables -t nat -F
 
-  # Ensure the traffic can flow through any filtering chains
-  iptables -I FORWARD -p tcp --dport 9091 -j ACCEPT
-  iptables -I FORWARD -p tcp --sport 9091 -j ACCEPT
+    # Allow established connections
+    iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-  echo "iptables forwarding rules have been set up"
+    # Allow loopback
+    iptables -A INPUT -i lo -j ACCEPT
+    iptables -A OUTPUT -o lo -j ACCEPT
+
+    # Allow DNS
+    iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
+
+    # Allow WireGuard UDP traffic
+    iptables -A OUTPUT -p udp --dport 51820 -j ACCEPT
+
+    # Allow all incoming traffic to port 9091 regardless of interface
+    iptables -I INPUT -p tcp --dport 9091 -j ACCEPT
+
+    # Allow all outgoing traffic from port 9091
+    iptables -I OUTPUT -p tcp --sport 9091 -j ACCEPT
+
+    # Ensure the traffic can flow through any filtering chains
+    iptables -I FORWARD -p tcp --dport 9091 -j ACCEPT
+    iptables -I FORWARD -p tcp --sport 9091 -j ACCEPT
+
+    echo "iptables forwarding rules have been set up"
 }
 
-# Start OpenVPN
-start_openvpn() {
-  echo "Starting OpenVPN..."
-  openvpn --config "${CONFIG_FILE}" --auth-user-pass "${CREDS_PATH}" &
-  VPN_PID=$!
-  
-  # Wait for VPN to connect
-  echo "Waiting for VPN connection..."
-  for i in {1..30}; do
-    if ip link show tun0 >/dev/null 2>&1; then
-      echo "VPN connection established!"
-      
-      # Add route to allow local network traffic to bypass VPN
-      echo "Getting default gateway..."
-      DEFAULT_GW=$(ip route | grep default | awk '{print $3}')
-      echo "Default gateway found: $DEFAULT_GW"
+# Start WireGuard manually (without wg-quick to avoid resolvconf issues)
+start_wireguard() {
+    echo "Starting WireGuard..."
 
-      echo "Attempting to add local network bypass route..."
-      if ip route add 192.168.50.0/24 via $DEFAULT_GW dev eth0; then
-        echo "Successfully added local network bypass route via $DEFAULT_GW"
-      else
-        echo "Failed to add local network bypass route via $DEFAULT_GW"
-        # Still continue script execution
-      fi
+    # Create the WireGuard interface
+    ip link add wg0 type wireguard
 
-      # Get the VPN interface
-      VPN_INTERFACE="tun0"
-      
-      # Set up masquerading once connected
-      iptables -t nat -A POSTROUTING -o $VPN_INTERFACE -j MASQUERADE
-      
-      # Allow traffic through VPN
-      iptables -A INPUT -i $VPN_INTERFACE -j ACCEPT
-      iptables -A OUTPUT -o $VPN_INTERFACE -j ACCEPT
-      
-      # Check if Transmission is running in the shared network namespace
-      sleep 10  # Give transmission a moment to start if it's in another container
-      if ! pgrep -f "transmission-daemon" > /dev/null; then
-        echo "Transmission daemon not detected, this is expected if using network_mode: service"
-        echo "If Transmission should be running, check the atd container logs"
-      else
-        echo "Transmission daemon detected and running"
-      fi
-      
-      # Keep the script running
-      wait $VPN_PID
-      return 0
+    # Apply the configuration
+    wg setconf wg0 "${CONFIG_FILE}"
+
+    # Parse and add addresses
+    IFS=',' read -ra ADDRESSES <<< "${WIREGUARD_ADDRESS}"
+    for addr in "${ADDRESSES[@]}"; do
+        addr=$(echo "$addr" | xargs)  # trim whitespace
+        if [[ "$addr" == *":"* ]]; then
+            # IPv6 address
+            ip -6 address add "$addr" dev wg0
+        else
+            # IPv4 address
+            ip -4 address add "$addr" dev wg0
+        fi
+    done
+
+    # Bring up the interface
+    ip link set mtu 1420 up dev wg0
+
+    # Add default route through WireGuard
+    # First, save the current default gateway for VPN endpoint routing
+    DEFAULT_GW=$(ip route | grep default | head -1 | awk '{print $3}')
+    DEFAULT_IF=$(ip route | grep default | head -1 | awk '{print $5}')
+    ENDPOINT_IP=$(echo "${WIREGUARD_ENDPOINT}" | cut -d: -f1)
+
+    echo "Default gateway: $DEFAULT_GW via $DEFAULT_IF"
+    echo "VPN endpoint: $ENDPOINT_IP"
+
+    # Add route to VPN endpoint via original gateway
+    ip route add "$ENDPOINT_IP" via "$DEFAULT_GW" dev "$DEFAULT_IF" 2>/dev/null || true
+
+    # Add route for local network to bypass VPN
+    ip route add 192.168.50.0/24 via "$DEFAULT_GW" dev "$DEFAULT_IF" 2>/dev/null || echo "Local bypass route may already exist"
+
+    # Replace default route with WireGuard
+    ip route del default 2>/dev/null || true
+    ip route add default dev wg0
+
+    # Verify connection
+    echo "Waiting for WireGuard connection..."
+    sleep 3
+
+    if ip link show wg0 >/dev/null 2>&1; then
+        echo "WireGuard interface is up!"
+
+        # Show connection info
+        echo "WireGuard status:"
+        wg show wg0
+
+        # Set up masquerading for WireGuard interface
+        iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+
+        # Allow traffic through WireGuard
+        iptables -A INPUT -i wg0 -j ACCEPT
+        iptables -A OUTPUT -o wg0 -j ACCEPT
+
+        echo "VPN connection established successfully!"
+
+        # Verify external IP
+        echo "Checking external IP..."
+        EXT_IP=$(curl -s --connect-timeout 10 https://api.ipify.org || echo "Could not determine")
+        echo "External IP: $EXT_IP"
+
+        # Keep the container running
+        echo "WireGuard is running. Monitoring connection..."
+        while true; do
+            if ! ip link show wg0 >/dev/null 2>&1; then
+                echo "WireGuard interface down! Exiting..."
+                exit 1
+            fi
+            sleep 30
+        done
+    else
+        echo "ERROR: WireGuard interface failed to come up!"
+        exit 1
     fi
-    sleep 2
-  done
-  
-  echo "VPN connection failed after 60 seconds!"
-  exit 1
 }
 
 # Main execution
 setup_forwarding
-start_openvpn
+start_wireguard

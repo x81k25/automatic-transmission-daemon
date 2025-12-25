@@ -7,27 +7,24 @@ services:
     build:
       context: .
       dockerfile: dockerfile.vpn
-      args:
-        - VPN_USERNAME=${VPN_USERNAME}
-        - VPN_PASSWORD=${VPN_PASSWORD}
-        - VPN_CONFIG=${VPN_CONFIG}
     container_name: vpn-sidecar
     restart: unless-stopped
-    ports:   
+    ports:
       - "9091:9091"
     cap_add:
       - NET_ADMIN
-    env_file:
-      - ./.env
-    devices:
-      - /dev/net/tun
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESS=${WIREGUARD_ADDRESS}
+      - WIREGUARD_DNS=${WIREGUARD_DNS}
+      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
+      - WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
+      - WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    command: >
-      sh -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf &&
-             echo 'nameserver 8.8.4.4' >> /etc/resolv.conf &&
-             /entrypoint.sh"
     networks:
       - vpn-network
 
@@ -37,7 +34,7 @@ services:
       dockerfile: dockerfile.atd
     container_name: atd
     restart: unless-stopped
-    network_mode: "service:vpn-sidecar" 
+    network_mode: "service:vpn-sidecar"
     volumes:
       - ./media-cache/complete:/media-cache/complete
       - ./media-cache/incomplete:/media-cache/incomplete
