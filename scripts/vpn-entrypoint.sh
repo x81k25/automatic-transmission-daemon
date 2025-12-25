@@ -94,6 +94,12 @@ setup_forwarding() {
 start_wireguard() {
     echo "Starting WireGuard..."
 
+    # Clean up existing interface if present (handles container restart within same pod)
+    if ip link show wg0 &>/dev/null; then
+        echo "Cleaning up existing wg0 interface..."
+        ip link del wg0
+    fi
+
     # Create the WireGuard interface
     ip link add wg0 type wireguard
 
