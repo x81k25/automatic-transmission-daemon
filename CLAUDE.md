@@ -55,6 +55,7 @@ WIREGUARD_DNS           # DNS server
 WIREGUARD_PUBLIC_KEY    # Peer public key
 WIREGUARD_ALLOWED_IPS   # Peer allowed IPs
 WIREGUARD_ENDPOINT      # Peer endpoint (host:port)
+WIREGUARD_MTU           # Interface MTU (e.g., 1380)
 ```
 
 ## common commands

@@ -10,6 +10,7 @@ required_vars=(
     "WIREGUARD_ADDRESS"
     "WIREGUARD_PUBLIC_KEY"
     "WIREGUARD_ENDPOINT"
+    "WIREGUARD_MTU"
 )
 
 for var in "${required_vars[@]}"; do
@@ -119,8 +120,8 @@ start_wireguard() {
         fi
     done
 
-    # Bring up the interface
-    ip link set mtu 1420 up dev wg0
+    # Bring up the interface with configurable MTU
+    ip link set mtu "${WIREGUARD_MTU}" up dev wg0
 
     # Add default route through WireGuard
     # First, save the current default gateway for VPN endpoint routing
