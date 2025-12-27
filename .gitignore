@@ -53,3 +53,5 @@ my_expressvpn_usa_-_dallas_udp.ovpn
 sensitive/
 .env
 vpn-config.ovpn
+.bak
+.dev
