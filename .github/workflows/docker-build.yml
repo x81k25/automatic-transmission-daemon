@@ -88,7 +88,3 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha,scope=vpn-image
           cache-to: type=gha,mode=max,scope=vpn-image
-          build-args: |
-            VPN_USERNAME=${{ secrets.VPN_USERNAME }}
-            VPN_PASSWORD=${{ secrets.VPN_PASSWORD }}
-            VPN_CONFIG=${{ secrets.VPN_CONFIG }}

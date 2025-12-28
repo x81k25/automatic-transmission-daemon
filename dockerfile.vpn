@@ -1,20 +1,5 @@
-# ./dockerfile.vpn
-FROM ubuntu:24.04
+FROM qmcgaw/gluetun:latest
 
-# Install WireGuard and required tools
-RUN apt-get update && apt-get install -y \
-    wireguard \
-    wireguard-tools \
-    curl \
-    dnsutils \
-    iptables \
-    iproute2 \
-    iputils-ping \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy entrypoint script
-COPY scripts/vpn-entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+LABEL org.opencontainers.image.source="https://github.com/x81k25/automatic-transmission-daemon"
+LABEL org.opencontainers.image.description="WireGuard VPN sidecar based on gluetun"
+LABEL org.opencontainers.image.base.name="qmcgaw/gluetun:latest"
