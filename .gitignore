@@ -46,12 +46,18 @@ jspm_packages/
 Thumbs.db
 
 # files use for development only
-.dev/
+.bak
+.dev
+sample_torrents.yaml
+sample-torrents.yaml
+
+# runtime/cache directories
+config/
+gluetun/
+media-cache/
 
 # credential files
 my_expressvpn_usa_-_dallas_udp.ovpn
 sensitive/
 .env
 vpn-config.ovpn
-.bak
-.dev

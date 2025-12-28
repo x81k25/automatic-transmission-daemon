@@ -1,46 +1,54 @@
-networks:
-  vpn-network:
-    driver: bridge
-
 services:
-  vpn-sidecar:
-    build:
-      context: .
-      dockerfile: dockerfile.vpn
-    container_name: vpn-sidecar
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
     restart: unless-stopped
-    ports:
-      - "9091:9091"
     cap_add:
       - NET_ADMIN
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "9091:9091"       # Transmission web UI
+      - "51413:51413"     # Transmission peer port
+      - "51413:51413/udp"
     environment:
+      # gluetun config
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      # wireguard interface (mapped from .env)
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
-      - WIREGUARD_ADDRESS=${WIREGUARD_ADDRESS}
-      - WIREGUARD_DNS=${WIREGUARD_DNS}
-      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
-      - WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
-      - WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESS_IPV4}
       - WIREGUARD_MTU=${WIREGUARD_MTU}
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    networks:
-      - vpn-network
-
-  atd:
-    build:
-      context: .
-      dockerfile: dockerfile.atd
-    container_name: atd
-    restart: unless-stopped
-    network_mode: "service:vpn-sidecar"
+      - WIREGUARD_IMPLEMENTATION=userspace
+      # wireguard peer (mapped from .env)
+      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
+      - WIREGUARD_ENDPOINT_IP=${WIREGUARD_ENDPOINT_IP}
+      - WIREGUARD_ENDPOINT_PORT=${WIREGUARD_ENDPOINT_PORT}
+      # dns config - use VPN's DNS directly, no DoT
+      - DNS_ADDRESS=${WIREGUARD_DNS}
+      - DOT=off
     volumes:
-      - ./media-cache/complete:/media-cache/complete
-      - ./media-cache/incomplete:/media-cache/incomplete
+      - ./gluetun:/gluetun
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- https://ipinfo.io/ip || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+    restart: unless-stopped
+    network_mode: "service:gluetun"
     environment:
       - PUID=1005
       - PGID=1001
+      - TZ=America/Los_Angeles
+    volumes:
+      - ./config:/config
+      - ./media-cache/complete:/downloads/complete
+      - ./media-cache/incomplete:/downloads/incomplete
     depends_on:
-      - vpn-sidecar
+      gluetun:
+        condition: service_healthy

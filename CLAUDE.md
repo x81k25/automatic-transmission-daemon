@@ -26,19 +26,20 @@
 Dockerized Transmission BitTorrent client with VPN sidecar for secure traffic routing.
 
 ## architecture
-- **vpn-sidecar container**: Establishes VPN connection, handles network isolation
-- **atd container**: Transmission daemon using vpn-sidecar's network namespace
+- **gluetun container**: `qmcgaw/gluetun` - WireGuard VPN client with kill switch
+- **transmission container**: `linuxserver/transmission` - BitTorrent client using gluetun's network
 - Traffic only flows through VPN tunnel; if VPN drops, torrent traffic cannot leak
 
 ## key files
 ```
-dockerfile.vpn          # VPN sidecar container (WireGuard)
-dockerfile.atd          # Transmission daemon container
-docker-compose.yml      # Local dev orchestration
+docker-compose.yml                  # Container orchestration
+dockerfile.vpn                      # Thin wrapper around gluetun
+dockerfile.atd                      # Thin wrapper around linuxserver/transmission
+.env                                # WireGuard credentials (not committed)
 scripts/
-  vpn-entrypoint.sh     # VPN startup and iptables configuration
-  atd-start.sh          # Transmission startup script
-.env                    # WireGuard credentials (not committed)
+  test-wireguard-configs.sh         # Validate WireGuard configs
+  load-sample-torrents.sh           # Load test torrents via RPC
+.dev/wireguard-configs/             # WireGuard .conf files for testing
 ```
 
 ## environments
@@ -60,27 +61,27 @@ WIREGUARD_MTU           # Interface MTU (e.g., 1380)
 
 ## common commands
 ```bash
-# Build and run locally
-docker compose up -d --build
-
-# Rebuild without cache
-docker compose build --no-cache && docker compose up -d
+# Start containers
+docker compose up -d
 
 # Verify VPN connection
-docker exec vpn-sidecar curl ifconfig.me
+docker exec gluetun wget -q -O- https://ipinfo.io/ip
 
 # View logs
-docker logs vpn-sidecar
-docker logs atd
+docker logs gluetun
+docker logs transmission
 
-# Full rebuild
-docker compose down && docker compose build --no-cache && docker compose up -d
+# Restart
+docker compose down && docker compose up -d
+
+# Test WireGuard configs
+./scripts/test-wireguard-configs.sh
 ```
 
 ## network details
 - Transmission web UI: port 9091
-- VPN container requires NET_ADMIN capability
-- Uses bridge network with atd using `network_mode: service:vpn-sidecar`
+- gluetun requires NET_ADMIN capability and /dev/net/tun
+- transmission uses `network_mode: service:gluetun`
 
 ---
 
@@ -90,12 +91,6 @@ docker compose down && docker compose build --no-cache && docker compose up -d
 
 # instructions-of-the-day
 
-- migrate from open vpn to wireguard
-- succesfully deploy both containers locally
-- push to git (dev branch, your current branch)
-- make sure build has completed 
-
 ---
 
 # short-term-memory - add all temporary notes about your current task here
-
