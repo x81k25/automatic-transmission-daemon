@@ -33,9 +33,12 @@ Dockerized Transmission BitTorrent client with VPN sidecar for secure traffic ro
 ## key files
 ```
 docker-compose.yml                  # Container orchestration
+dockerfile.vpn                      # Thin wrapper around gluetun
+dockerfile.atd                      # Thin wrapper around linuxserver/transmission
 .env                                # WireGuard credentials (not committed)
 scripts/
   test-wireguard-configs.sh         # Validate WireGuard configs
+  load-sample-torrents.sh           # Load test torrents via RPC
 .dev/wireguard-configs/             # WireGuard .conf files for testing
 ```
 
@@ -88,12 +91,6 @@ docker compose down && docker compose up -d
 
 # instructions-of-the-day
 
-- migrate from open vpn to wireguard
-- succesfully deploy both containers locally
-- push to git (dev branch, your current branch)
-- make sure build has completed 
-
 ---
 
 # short-term-memory - add all temporary notes about your current task here
-

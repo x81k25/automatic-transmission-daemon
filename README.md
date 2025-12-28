@@ -1,179 +1,131 @@
-# Dockerized Transmission with VPN Sidecar
+# Dockerized Transmission with WireGuard VPN
 
-A secure Docker setup for running Transmission BitTorrent client behind a VPN connection.
+A secure Docker setup for running Transmission BitTorrent client behind a WireGuard VPN connection.
 
 ## Overview
 
-This repository contains configuration files to run Transmission daemon in a two-container setup:
+This repository runs Transmission daemon in a two-container setup:
 
-1. **VPN Sidecar**: A container that establishes and maintains a VPN connection
-2. **Transmission Daemon**: A BitTorrent client that routes all traffic through the VPN
+1. **gluetun**: WireGuard VPN client with built-in kill switch
+2. **transmission**: BitTorrent client routing all traffic through the VPN
 
-This architecture ensures that torrent traffic only flows through the VPN connection, providing privacy and security.
+This architecture ensures torrent traffic only flows through the VPN tunnel. If the VPN drops, traffic cannot leak.
 
 ## Repository Structure
 
 ```
 .
-├── .github
-│   └── workflows
-│       └── docker-build.yml  # CI/CD workflow for building container images
-├── scripts
-│   ├── atd-start.sh         # Transmission startup script
-│   └── vpn-entrypoint.sh    # VPN container entrypoint script
-├── .dockerignore
-├── .gitignore
-├── docker-compose.yml       # Configuration for running both containers
-├── dockerfile.atd           # Dockerfile for Transmission container
-├── dockerfile.vpn           # Dockerfile for VPN sidecar container
-└── readme.md
+├── .github/workflows/
+│   └── docker-build.yml        # CI/CD builds images to GHCR
+├── scripts/
+│   ├── test-wireguard-configs.sh   # Validate WireGuard .conf files
+│   └── load-sample-torrents.sh     # Load test torrents via RPC
+├── docker-compose.yml          # Container orchestration
+├── dockerfile.atd              # Wrapper around linuxserver/transmission
+├── dockerfile.vpn              # Wrapper around gluetun
+├── .env                        # WireGuard credentials (not committed)
+└── README.md
 ```
 
 ## Prerequisites
 
-- Docker
-- Docker Compose
-- VPN subscription with OpenVPN configuration
-
-## How It Works
-
-### VPN Sidecar Architecture
-
-The setup uses a "sidecar" pattern where:
-
-1. The VPN container establishes the secure connection
-2. The Transmission container shares the VPN container's network namespace
-3. All Transmission traffic is forced through the VPN tunnel
-
-This approach ensures that if the VPN connection drops, Transmission traffic cannot leak outside the secure tunnel.
-
-### Container Details
-
-#### VPN Sidecar Container
-
-- Based on Ubuntu 24.10
-- Runs OpenVPN client
-- Configures iptables for proper traffic routing
-- Manages DNS settings to prevent leaks
-- Exposes port 9091 for Transmission web interface
-
-#### Transmission Container
-
-- Based on Debian Stable Slim
-- Configured with specific UID/GID (1005:1001)
-- Mounts host directories for downloads
-- Shares network namespace with VPN container
+- Docker & Docker Compose
+- WireGuard configuration from your VPN provider
 
 ## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the repository root with the following variables:
+Create a `.env` file with your WireGuard credentials:
 
-```
-VPN_USERNAME=your_vpn_username
-VPN_PASSWORD=your_vpn_password
-VPN_CONFIG=your_openvpn_config_content
-```
+```bash
+# Interface
+WIREGUARD_PRIVATE_KEY=<your-private-key>
+WIREGUARD_ADDRESS=10.x.x.x/32,fc00::/128
+WIREGUARD_DNS=10.64.0.1
+WIREGUARD_MTU=1200
 
-The `VPN_CONFIG` variable should contain the entire content of your OpenVPN configuration file.
+# Peer
+WIREGUARD_PUBLIC_KEY=<server-public-key>
+WIREGUARD_ALLOWED_IPS=0.0.0.0/0,::0/0
+WIREGUARD_ENDPOINT=<server-ip>:51820
+
+# Gluetun remapped values
+WIREGUARD_ADDRESS_IPV4=10.x.x.x/32
+WIREGUARD_ENDPOINT_IP=<server-ip>
+WIREGUARD_ENDPOINT_PORT=51820
+```
 
 ### Volumes
 
-The docker-compose.yml file configures two volume mounts:
-
-- `./media-cache/complete`: Directory for completed downloads
-- `./media-cache/incomplete`: Directory for incomplete downloads
-
-Make sure these directories exist on your host system with proper permissions.
+The docker-compose.yml configures:
+- `./config`: Transmission configuration
+- `./media-cache/complete`: Completed downloads
+- `./media-cache/incomplete`: In-progress downloads
 
 ## Usage
 
-### Building and Running
-
-To build and start both containers:
+### Start Containers
 
 ```bash
-# Build and start both containers
-docker compose up -d
-
-# Build containers without using cache
-docker compose build --no-cache
 docker compose up -d
 ```
 
-### Verifying VPN Connection
-
-To verify that traffic is routing through the VPN:
+### Verify VPN Connection
 
 ```bash
-# Check IP address from VPN container
-docker exec -it vpn-sidecar curl ifconfig.me
+# Check VPN IP
+docker exec gluetun wget -q -O- https://ipinfo.io/ip
 
-# Check IP address from Transmission container
-docker exec -it atd curl ifconfig.me
+# Should return VPN provider's IP, not your real IP
 ```
 
-Both commands should return the same IP address, which should be your VPN provider's IP, not your actual public IP.
-
-### Managing Containers
+### Test WireGuard Configs
 
 ```bash
-# View container logs
-docker logs vpn-sidecar
-docker logs atd
-
-# Access container shell
-docker exec -it vpn-sidecar /bin/bash
-docker exec -it atd /bin/bash
-
-# Stop containers
-docker compose down
+# Validate .conf files in .dev/wireguard-configs/
+./scripts/test-wireguard-configs.sh
 ```
 
-### Full Rebuild
-
-If you need to completely rebuild the containers:
+### Load Test Torrents
 
 ```bash
-# Stop, rebuild without cache, and restart
-docker compose down && docker compose build --no-cache && docker compose up -d
+./scripts/load-sample-torrents.sh
 ```
+
+### View Logs
+
+```bash
+docker logs gluetun
+docker logs transmission
+```
+
+### Access Transmission
+
+Web UI: http://localhost:9091
 
 ## CI/CD Pipeline
 
-This repository includes GitHub Actions workflows that automatically build and push Docker images when changes are pushed to the `main`, `dev`, or `stg` branches. The workflow:
+GitHub Actions automatically builds and pushes Docker images on push to `main`, `dev`, or `stg` branches:
 
-1. Builds both Docker images (ATD and VPN)
-2. Pushes the images to GitHub Container Registry (GHCR)
-3. Tags images with branch name and latest (for main branch)
+- Images pushed to GitHub Container Registry (GHCR)
+- Tagged with branch name
+- Thin wrappers around upstream images for version control
 
 ## Troubleshooting
 
 ### VPN Connection Issues
 
-If the VPN connection fails to establish:
-
-1. Check the VPN container logs: `docker logs vpn-sidecar`
-2. Verify your VPN credentials in the `.env` file
-3. Ensure your OpenVPN config is valid and complete
+1. Check logs: `docker logs gluetun`
+2. Verify credentials in `.env`
+3. Test config: `./scripts/test-wireguard-configs.sh`
 
 ### Transmission Access Issues
 
-If you can't access the Transmission web interface:
-
-1. Verify that the VPN connection is established
-2. Check that port 9091 is correctly forwarded
-3. Ensure iptables rules in the VPN container are correctly configured
-
-### Network Connectivity Issues
-
-If containers can't access the internet:
-
-1. Check DNS configuration in the VPN container
-2. Verify that routing is properly configured
-3. Make sure `NET_ADMIN` capability is granted to the VPN container
+1. Verify VPN is healthy: `docker ps` (should show "healthy")
+2. Check port 9091 is exposed
+3. Verify transmission container started: `docker logs transmission`
 
 ## License
 
-This project is licensed under the MIT License
+MIT License
