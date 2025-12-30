@@ -1,3 +1,4 @@
+# hadolint ignore=DL3007
 FROM lscr.io/linuxserver/transmission:latest
 
 LABEL org.opencontainers.image.source="https://github.com/x81k25/automatic-transmission-daemon"

@@ -6,7 +6,43 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run shellcheck on scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+
+      - name: Run hadolint on dockerfile.atd
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: dockerfile.atd
+
+      - name: Run hadolint on dockerfile.vpn
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: dockerfile.vpn
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats jq
+
+      - name: Run unit tests
+        run: bats tests/unit/
+
   build-and-push-atd:
+    needs: [lint, unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,7 +61,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract branch name
         shell: bash
         run: echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
@@ -38,6 +74,16 @@ jobs:
           load: true
           tags: transmission-atd-test:${{ github.sha }}
           platforms: linux/amd64
+
+      - name: Verify init script exists in image
+        run: |
+          docker run --rm --entrypoint="" transmission-atd-test:${{ github.sha }} \
+            ls -la /custom-cont-init.d/99-apply-transmission-settings
+
+      - name: Verify init script is executable
+        run: |
+          docker run --rm --entrypoint="" transmission-atd-test:${{ github.sha }} \
+            test -x /custom-cont-init.d/99-apply-transmission-settings
 
       - name: Build and push ATD image
         uses: docker/build-push-action@v5
@@ -53,6 +99,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=atd-image
 
   build-and-push-vpn:
+    needs: [lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -71,7 +118,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract branch name
         shell: bash
         run: echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV

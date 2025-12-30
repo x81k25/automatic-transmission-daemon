@@ -6,7 +6,7 @@ SETTINGS_FILE="/config/settings.json"
 
 # Wait for settings.json to exist (transmission creates it on first run)
 # If it doesn't exist after 30s, exit and let transmission create defaults
-for i in {1..30}; do
+for _ in {1..30}; do
     if [[ -f "$SETTINGS_FILE" ]]; then
         break
     fi
