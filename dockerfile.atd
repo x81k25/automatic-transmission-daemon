@@ -3,3 +3,7 @@ FROM lscr.io/linuxserver/transmission:latest
 LABEL org.opencontainers.image.source="https://github.com/x81k25/automatic-transmission-daemon"
 LABEL org.opencontainers.image.description="Transmission BitTorrent client for ATD pipeline"
 LABEL org.opencontainers.image.base.name="lscr.io/linuxserver/transmission:latest"
+
+# Copy custom init script to apply transmission settings from env vars
+COPY scripts/apply-transmission-settings.sh /custom-cont-init.d/99-apply-transmission-settings
+RUN chmod +x /custom-cont-init.d/99-apply-transmission-settings
