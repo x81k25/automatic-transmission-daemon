@@ -35,11 +35,26 @@ Dockerized Transmission BitTorrent client with VPN sidecar for secure traffic ro
 docker-compose.yml                  # Container orchestration
 dockerfile.vpn                      # Thin wrapper around gluetun
 dockerfile.atd                      # Thin wrapper around linuxserver/transmission
-.env                                # WireGuard credentials (not committed)
+.env                                # WireGuard + transmission settings (not committed)
 scripts/
+  apply-transmission-settings.sh    # Init script for settings injection
+tests/
+  unit/test-apply-settings.bats     # BATS unit tests
   test-wireguard-configs.sh         # Validate WireGuard configs
   load-sample-torrents.sh           # Load test torrents via RPC
 .dev/wireguard-configs/             # WireGuard .conf files for testing
+```
+
+## transmission settings
+Environment variables injected into settings.json on container start:
+```
+TRANSMISSION_CACHE_SIZE_MB          # Cache size in MB
+TRANSMISSION_DOWNLOAD_QUEUE_*       # Download queue settings
+TRANSMISSION_PEER_LIMIT_*           # Peer limits
+TRANSMISSION_SPEED_LIMIT_*          # Bandwidth limits
+TRANSMISSION_QUEUE_STALLED_*        # Stalled torrent handling
+TRANSMISSION_SEED_QUEUE_*           # Seed queue settings
+TRANSMISSION_PREALLOCATION          # Disk preallocation mode
 ```
 
 ## environments
@@ -75,7 +90,14 @@ docker logs transmission
 docker compose down && docker compose up -d
 
 # Test WireGuard configs
-./scripts/test-wireguard-configs.sh
+./tests/test-wireguard-configs.sh
+
+# Load test torrents
+./tests/load-sample-torrents.sh
+
+# Run unit tests
+docker run --rm -v $(pwd):/workdir -w /workdir ubuntu:22.04 \
+  bash -c "apt-get update -qq && apt-get install -qq -y bats jq >/dev/null && bats tests/unit/"
 ```
 
 ## network details
