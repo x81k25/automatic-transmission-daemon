@@ -1,0 +1,101 @@
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  ATD_IMAGE: "${CI_REGISTRY_IMAGE}/atd"
+  VPN_IMAGE: "${CI_REGISTRY_IMAGE}/vpn"
+
+# Lint jobs
+shellcheck:
+  stage: lint
+  tags:
+    - k8s
+    - docker
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - shellcheck scripts/*.sh
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+
+hadolint-atd:
+  stage: lint
+  tags:
+    - k8s
+    - docker
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - hadolint dockerfile.atd
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+
+hadolint-vpn:
+  stage: lint
+  tags:
+    - k8s
+    - docker
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - hadolint dockerfile.vpn
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+
+# Unit tests
+unit-tests:
+  stage: test
+  tags:
+    - k8s
+    - docker
+  image: bats/bats:latest
+  script:
+    - bats tests/unit/
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+
+# Build jobs
+build-atd:
+  stage: build
+  tags:
+    - k8s
+    - docker
+  needs:
+    - shellcheck
+    - hadolint-atd
+    - unit-tests
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/dockerfile.atd"
+      --destination "${ATD_IMAGE}:${CI_COMMIT_REF_NAME}"
+      --destination "${ATD_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+
+build-vpn:
+  stage: build
+  tags:
+    - k8s
+    - docker
+  needs:
+    - hadolint-vpn
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/dockerfile.vpn"
+      --destination "${VPN_IMAGE}:${CI_COMMIT_REF_NAME}"
+      --destination "${VPN_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
