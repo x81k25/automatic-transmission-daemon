@@ -47,7 +47,9 @@ unit-tests:
   tags:
     - k8s
     - docker
-  image: bats/bats:latest
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update -qq && apt-get install -qq -y bats jq >/dev/null
   script:
     - bats tests/unit/
   rules:
