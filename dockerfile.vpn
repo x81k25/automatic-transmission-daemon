@@ -4,3 +4,11 @@ FROM qmcgaw/gluetun:latest
 LABEL org.opencontainers.image.source="https://github.com/x81k25/automatic-transmission-daemon"
 LABEL org.opencontainers.image.description="WireGuard VPN sidecar based on gluetun"
 LABEL org.opencontainers.image.base.name="qmcgaw/gluetun:latest"
+
+# hadolint ignore=DL3018
+RUN apk add --no-cache jq
+
+COPY scripts/wireguard-server-select.sh /wireguard-server-select.sh
+RUN chmod +x /wireguard-server-select.sh
+
+ENTRYPOINT ["/wireguard-server-select.sh"]
