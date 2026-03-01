@@ -24,10 +24,11 @@ export WIREGUARD_PUBLIC_KEY=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER
 export WIREGUARD_ENDPOINT_IP=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[0]')
 export WIREGUARD_ENDPOINT_PORT=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[1]')
 
-# Extract IPv4-only address (gluetun expects IPv4 when VPN_IPV6=off)
+# Extract IPv4-only values (gluetun expects IPv4 when VPN_IPV6=off)
 export WIREGUARD_ADDRESSES=$(echo "$WIREGUARD_ADDRESS" | cut -d',' -f1)
-# Unset WIREGUARD_ADDRESS so gluetun doesn't also try to use IPv6 from it
 unset WIREGUARD_ADDRESS
+# Strip IPv6 from allowed IPs if present
+export WIREGUARD_ALLOWED_IPS=$(echo "$WIREGUARD_ALLOWED_IPS" | sed 's/,::0\/0//' | sed 's/,::\///')
 
 echo "  endpoint: ${WIREGUARD_ENDPOINT_IP}:${WIREGUARD_ENDPOINT_PORT}"
 echo "  public_key: ${WIREGUARD_PUBLIC_KEY:0:20}..."
