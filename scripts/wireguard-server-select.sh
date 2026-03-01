@@ -16,22 +16,27 @@ if [ -z "$WIREGUARD_ADDRESS" ]; then
 fi
 
 # Pick a random server from the JSON blob
-SERVER_NAME=$(echo "$WIREGUARD_SERVERS" | jq -r 'keys[]' | shuf -n1)
+SERVER_NAME="$(echo "$WIREGUARD_SERVERS" | jq -r 'keys[]' | shuf -n1)"
 echo "Selected WireGuard server: $SERVER_NAME"
 
 # Extract server details
-export WIREGUARD_PUBLIC_KEY=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].public_key')
-export WIREGUARD_ENDPOINT_IP=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[0]')
-export WIREGUARD_ENDPOINT_PORT=$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[1]')
+WIREGUARD_PUBLIC_KEY="$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].public_key')"
+export WIREGUARD_PUBLIC_KEY
+WIREGUARD_ENDPOINT_IP="$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[0]')"
+export WIREGUARD_ENDPOINT_IP
+WIREGUARD_ENDPOINT_PORT="$(echo "$WIREGUARD_SERVERS" | jq -r --arg s "$SERVER_NAME" '.[$s].endpoint | split(":")[1]')"
+export WIREGUARD_ENDPOINT_PORT
 
 # Extract IPv4-only values (gluetun expects IPv4 when VPN_IPV6=off)
-export WIREGUARD_ADDRESSES=$(echo "$WIREGUARD_ADDRESS" | cut -d',' -f1)
+WIREGUARD_ADDRESSES="$(echo "$WIREGUARD_ADDRESS" | cut -d',' -f1)"
+export WIREGUARD_ADDRESSES
 unset WIREGUARD_ADDRESS
 # Strip IPv6 from allowed IPs if present
-export WIREGUARD_ALLOWED_IPS=$(echo "$WIREGUARD_ALLOWED_IPS" | sed 's/,::0\/0//' | sed 's/,::\///')
+WIREGUARD_ALLOWED_IPS="$(echo "$WIREGUARD_ALLOWED_IPS" | sed 's/,::0\/0//' | sed 's/,::\///')"
+export WIREGUARD_ALLOWED_IPS
 
 echo "  endpoint: ${WIREGUARD_ENDPOINT_IP}:${WIREGUARD_ENDPOINT_PORT}"
-echo "  public_key: ${WIREGUARD_PUBLIC_KEY:0:20}..."
+echo "  public_key: $(echo "$WIREGUARD_PUBLIC_KEY" | cut -c1-20)..."
 echo "  address: ${WIREGUARD_ADDRESSES}"
 
 # Hand off to gluetun entrypoint
