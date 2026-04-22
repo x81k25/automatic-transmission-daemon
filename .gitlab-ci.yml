@@ -1,7 +1,7 @@
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|main)$/
 
 stages:
   - lint
@@ -61,7 +61,7 @@ unit-tests:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# Build jobs - run on push to dev/stg/main
+# Build jobs - run on push to dev/main
 build-atd:
   stage: build
   tags:
@@ -80,7 +80,7 @@ build-atd:
       --destination "${ATD_IMAGE}:${CI_COMMIT_REF_NAME}"
       --destination "${ATD_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
   rules:
-    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|main)$/
 
 build-vpn:
   stage: build
@@ -100,7 +100,7 @@ build-vpn:
       --destination "${VPN_IMAGE}:${CI_COMMIT_REF_NAME}"
       --destination "${VPN_IMAGE}:sha-${CI_COMMIT_SHORT_SHA}"
   rules:
-    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|main)$/
 
 # Deploy-test template
 .deploy-test:
@@ -170,16 +170,6 @@ deploy-test-dev:
     NAMESPACE: "media-dev"
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
-
-# Deploy-test for stg
-deploy-test-stg:
-  extends: .deploy-test
-  resource_group: atd-stg
-  variables:
-    DEPLOYMENT: "atd-stg"
-    NAMESPACE: "media-stg"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "stg"
 
 # Deploy-test for prod
 deploy-test-prod:
