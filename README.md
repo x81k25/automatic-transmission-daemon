@@ -144,7 +144,7 @@ Web UI: http://localhost:9091
 
 ## CI/CD Pipeline
 
-GitHub Actions runs on push to `main`, `dev`, or `stg` branches:
+GitHub Actions runs on push to `main` or `dev` branches:
 
 ```
 [lint] ─────────────────┬──→ [build-and-push-vpn]
